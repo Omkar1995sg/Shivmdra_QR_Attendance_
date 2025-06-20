@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>QR Attendance</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; }
+    #status { margin-top: 1.5rem; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h2>Mark Attendance</h2>
+
+  <form id="rollForm">
+    <label for="roll">Roll No:</label>
+    <select id="roll" required>
+      <option value="">--Select Roll No--</option>
+    </select><br><br>
+    <button type="submit">Mark Present</button>
+  </form>
+
+  <div id="status"></div>
+
+<script>
+(() => {
+  const rollSel = document.getElementById("roll");
+  for (let i = 1; i <= 600; i++) {
+    rollSel.innerHTML += `<option value="J${i}">J${i}</option>`;
+  }
+
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbziFnBxM8U5p5i1TfKvL4fc-fSZhlJ5Fw6krYGUSbzl-8byAj-jmp3r7uqIvU2DZ9zE/exec";  // 🔁 Replace this
+
+  document.getElementById("rollForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const roll = rollSel.value;
+    if (!roll) return alert("Please select your roll number.");
+
+    document.getElementById("status").textContent = "📍 Fetching location…";
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const lat = pos.coords.latitude.toFixed(6);
+      const lon = pos.coords.longitude.toFixed(6);
+      const location = `${lat},${lon}`;
+
+      let address = "Unknown";
+      try {
+        const resp = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`,
+          { headers: { "User-Agent": "qr-attendance/1.0" } }
+        );
+        const data = await resp.json();
+        address = data.display_name || "Unknown";
+      } catch (_) {}
+
+      const payload = new URLSearchParams({ roll, location, address });
+
+      const res = await fetch(WEB_APP_URL, { method: "POST", body: payload });
+      const json = await res.json();
+
+      if (json.status === "inserted") {
+        document.body.innerHTML = `<h2 style="color:green;">✅ Attendance marked!</h2>
+        <p>Roll No: ${roll}<br>Location: ${location}<br>${address}</p>`;
+      } else if (json.status === "updated") {
+        document.body.innerHTML = `<h2 style="color:#ffc107;">🔁 Attendance updated!</h2>
+        <p>Your latest location has been saved.<br>Roll: ${roll}<br>${lat}, ${lon}</p>`;
+      } else {
+        alert("❌ Error: " + (json.message || "Please try again."));
+      }
+    },
+    (err) => alert("Location error: " + err.message),
+    { enableHighAccuracy: true, timeout: 10000 });
+  });
+})();
+</script>
+</body>
+</html>
